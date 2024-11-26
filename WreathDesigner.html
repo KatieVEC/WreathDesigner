@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wreath Designer</title>
+  <style>
+    body, html {
+      height: 100%;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: #f0f0f0;
+    }
+
+    #gameCanvas {
+      border: 2px solid black;
+      display: block;
+    }
+
+    #objectList {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .objectBtn {
+      margin: 0 10px;
+      padding: 10px;
+    }
+
+    .selected {
+      background-color: gray;
+    }
+
+    #undoBtn {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: lightcoral;
+      border: none;
+      cursor: pointer;
+    }
+
+    #undoBtn:hover {
+      background-color: darkred;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <div id="objectList">
+    <button class="objectBtn" id="hollyBtn">Holly</button>
+    <button class="objectBtn" id="ribbonsBtn">Ribbons</button>
+    <button class="objectBtn" id="pineconesBtn">Pinecones</button>
+    <button class="objectBtn" id="baublesBtn">Baubles</button>
+  </div>
+
+  <button id="undoBtn">Undo</button>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const hollyImages = ['images/holly1.png', 'images/holly2.png', 'images/holly3.png'];
+    const ribbonsImages = ['images/ribbons1.png', 'images/ribbons2.png', 'images/ribbons3.png'];
+    const pineconesImages = ['images/pinecones1.png', 'images/pinecones2.png', 'images/pinecones3.png'];
+    const baublesImages = ['images/baubles1.png', 'images/baubles2.png', 'images/baubles3.png'];
+    
+    // Load the wreath background image
+    const backgroundImage = new Image();
+    backgroundImage.src = 'images/wreath.png';
+
+    // Ensure the background is drawn first and only once
+    backgroundImage.onload = () => {
+      drawObjects(); // Once the background image is loaded, we can start drawing
+    };
+
+    function getRandomImage(imageArray) {
+      const randomIndex = Math.floor(Math.random() * imageArray.length);
+      const img = new Image();
+      img.src = imageArray[randomIndex];
+      return img;
+    }
+
+    function getRandomSize(baseSize) {
+      const scale = Math.random() * 1.5 + 0.5;
+      return baseSize * scale;
+    }
+
+    function getRandomRotation() {
+      return Math.random() * Math.PI * 2;
+    }
+
+    let currentObject = null;
+
+    document.getElementById('hollyBtn').addEventListener('click', () => {
+      currentObject = 'holly';
+      setActiveButton('hollyBtn');
+    });
+
+    document.getElementById('ribbonsBtn').addEventListener('click', () => {
+      currentObject = 'ribbons';
+      setActiveButton('ribbonsBtn');
+    });
+
+    document.getElementById('pineconesBtn').addEventListener('click', () => {
+      currentObject = 'pinecones';
+      setActiveButton('pineconesBtn');
+    });
+
+    document.getElementById('baublesBtn').addEventListener('click', () => {
+      currentObject = 'baubles';
+      setActiveButton('baublesBtn');
+    });
+
+    function setActiveButton(buttonId) {
+      const buttons = document.querySelectorAll('.objectBtn');
+      buttons.forEach(button => button.classList.remove('selected'));
+      const button = document.getElementById(buttonId);
+      button.classList.add('selected');
+    }
+
+    let objectsOnCanvas = [];
+    let selectedObject = null;
+    let offsetX = 0;
+    let offsetY = 0;
+    let dragging = false;
+    let rotating = false;
+    let hoveredObject = null;
+    let lastMousePosition = { x: 0, y: 0 };
+
+    // Handle left-click for placing objects
+    canvas.addEventListener('click', (event) => {
+      if (dragging) return;
+
+      const mouseUpPosition = { x: event.offsetX, y: event.offsetY };
+      if (Math.abs(mouseUpPosition.x - lastMousePosition.x) < 5 && Math.abs(mouseUpPosition.y - lastMousePosition.y) < 5) {
+        if (currentObject) {
+          const x = event.offsetX;
+          const y = event.offsetY;
+
+          let selectedImage = null;
+          let baseSize = 50;
+
+          if (currentObject === 'holly') selectedImage = getRandomImage(hollyImages);
+          else if (currentObject === 'ribbons') selectedImage = getRandomImage(ribbonsImages);
+          else if (currentObject === 'pinecones') selectedImage = getRandomImage(pineconesImages);
+          else if (currentObject === 'baubles') selectedImage = getRandomImage(baublesImages);
+
+          const size = getRandomSize(baseSize);
+          const rotation = getRandomRotation();
+
+          objectsOnCanvas.push({ object: currentObject, x, y, image: selectedImage, size, rotation });
+          drawObjects();
+        }
+      }
+    });
+
+    // Draw objects on canvas
+    function drawObjects() {
+      // Clear the canvas before drawing anything
+      ctx.clearRect(0, 0, canvas.width, canvas.height);  
+
+      // Draw the wreath background image at a fixed position
+      ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+
+      // Now, draw the objects on top of the background image
+      objectsOnCanvas.forEach(item => {
+        ctx.save(); // Save the current canvas state
+        ctx.translate(item.x, item.y);  // Move to object position
+        ctx.rotate(item.rotation);  // Apply rotation
+        ctx.drawImage(item.image, -item.size / 2, -item.size / 2, item.size, item.size);  // Draw the object
+        ctx.restore(); // Restore the canvas state (reset transformations)
+      });
+    }
+
+    // Handle mousedown for both dragging (left-click) and rotating (right-click)
+    canvas.addEventListener('mousedown', (event) => {
+      lastMousePosition = { x: event.offsetX, y: event.offsetY };
+
+      if (event.button === 0) {
+        // Left-click: Handle dragging of objects
+        for (let i = 0; i < objectsOnCanvas.length; i++) {
+          const item = objectsOnCanvas[i];
+          const dx = event.offsetX - item.x;
+          const dy = event.offsetY - item.y;
+          if (dx * dx + dy * dy <= 400) {
+            selectedObject = item;
+            offsetX = dx;
+            offsetY = dy;
+            dragging = true;
+            break;
+          }
+        }
+      } else if (event.button === 2) {
+        // Right-click: Handle rotating of objects
+        for (let i = 0; i < objectsOnCanvas.length; i++) {
+          const item = objectsOnCanvas[i];
+          const dx = event.offsetX - item.x;
+          const dy = event.offsetY - item.y;
+          if (dx * dx + dy * dy <= 400) {
+            selectedObject = item;
+            rotating = true;
+            break;
+          }
+        }
+      }
+
+      event.preventDefault(); // Prevent the context menu on right-click
+    });
+
+    // Handle mousemove for both dragging and rotating
+    canvas.addEventListener('mousemove', (event) => {
+      // Hover detection for resizing
+      hoveredObject = null;
+      for (let i = 0; i < objectsOnCanvas.length; i++) {
+        const item = objectsOnCanvas[i];
+        const dx = event.offsetX - item.x;
+        const dy = event.offsetY - item.y;
+        if (dx * dx + dy * dy <= 400) {
+          hoveredObject = item;
+          break;
+        }
+      }
+
+      if (dragging && selectedObject) {
+        selectedObject.x = event.offsetX - offsetX;
+        selectedObject.y = event.offsetY - offsetY;
+        drawObjects();
+      } else if (rotating && selectedObject) {
+        const dx = event.offsetX - selectedObject.x;
+        const dy = event.offsetY - selectedObject.y;
+        selectedObject.rotation = Math.atan2(dy, dx);
+        drawObjects();
+      }
+    });
+
+    // Handle mouseup for both dragging and rotating
+    canvas.addEventListener('mouseup', () => {
+      dragging = false;
+      rotating = false;
+      selectedObject = null;
+    });
+
+    document.getElementById('undoBtn').addEventListener('click', () => {
+      objectsOnCanvas.pop();
+      drawObjects();
+    });
+
+    // Mouse wheel event to resize objects on hover
+    canvas.addEventListener('wheel', (event) => {
+      event.preventDefault();
+
+      if (hoveredObject) {
+        const scaleChange = event.deltaY < 0 ? 1.1 : 0.9;
+        hoveredObject.size *= scaleChange;
+        drawObjects();
+      }
+    });
+
+    // Prevent the context menu from appearing anywhere on the page (right-click menu)
+    document.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+    });
+  </script>
+</body>
+</html>
